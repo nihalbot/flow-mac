@@ -30,5 +30,9 @@
     <string>Flow needs permission to close or redirect distracting browser tabs and apps during active focus sessions.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Flow records completed focus sessions into Apple Calendar.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Flow records completed focus sessions into Apple Calendar.</string>
+    <key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+    <string>Flow records completed focus sessions into Apple Calendar.</string>
 </dict>
 </plist>

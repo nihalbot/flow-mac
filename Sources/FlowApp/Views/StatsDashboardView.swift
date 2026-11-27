@@ -7,8 +7,15 @@ public enum StatsTab: String, CaseIterable {
     case history = "History"
 }
 
+public enum HistoryViewMode: String, CaseIterable, Identifiable {
+    case combined = "Combined Activities"
+    case timeline = "All Sessions Timeline"
+    public var id: String { rawValue }
+}
+
 public class StatsViewModel: ObservableObject {
     @Published public var selectedTab: StatsTab = .overview
+    @Published public var historyViewMode: HistoryViewMode = .combined
     @Published public var isExporting: Bool = false
     @Published public var exportMessage: String? = nil
     @Published public var cloudMessage: String? = nil
@@ -276,6 +283,76 @@ public struct StatsDashboardView: View {
             .padding()
             .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
             .cornerRadius(12)
+            
+            // Activities & Tasks Breakdown (Combined Cycles & Time)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "list.bullet.rectangle.portrait.fill")
+                            .foregroundColor(Color(red: 0.95, green: 0.36, blue: 0.30))
+                        Text("Activities & Tasks Breakdown")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    Spacer()
+                    Text("Total combined time per task")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                
+                let activities = history.groupedActivities()
+                if activities.isEmpty {
+                    Text("No activities recorded yet.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 8)
+                } else {
+                    let totalSecsAll = max(1.0, Double(activities.reduce(0) { $0 + $1.totalSeconds }))
+                    ForEach(activities.prefix(10)) { act in
+                        let fraction = act.totalSeconds / totalSecsAll
+                        let matchingCat = settings.categories.first(where: { $0.name == act.categoryName })
+                        let catColor = matchingCat?.color ?? Color(red: 0.95, green: 0.36, blue: 0.30)
+                        
+                        VStack(spacing: 4) {
+                            HStack {
+                                Circle()
+                                    .fill(catColor)
+                                    .frame(width: 8, height: 8)
+                                Text(act.title)
+                                    .font(.system(size: 12, weight: .bold))
+                                
+                                Text(act.categoryName)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .clipShape(Capsule())
+                                
+                                Spacer()
+                                
+                                Text("\(act.totalCycles) \(act.totalCycles == 1 ? "cycle" : "cycles") • \(act.formattedDuration)")
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
+                            
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color.secondary.opacity(0.12))
+                                        .frame(height: 6)
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(catColor)
+                                        .frame(width: geo.size.width * CGFloat(fraction), height: 6)
+                                }
+                            }
+                            .frame(height: 6)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+            .cornerRadius(12)
         }
         .padding()
     }
@@ -296,43 +373,105 @@ public struct StatsDashboardView: View {
                 .frame(maxWidth: .infinity)
                 .padding(40)
             } else {
-                let sorted = history.sessions.sorted(by: { $0.endTime > $1.endTime })
-                ForEach(sorted) { session in
-                    HStack(spacing: 12) {
-                        Image(systemName: session.type.iconName)
-                            .font(.system(size: 14))
-                            .foregroundColor(session.type.accentColor)
-                            .frame(width: 28, height: 28)
-                            .background(session.type.accentColor.opacity(0.12))
-                            .clipShape(Circle())
+                // View Mode Picker (Combined vs Timeline)
+                Picker("", selection: $vm.historyViewMode) {
+                    ForEach(HistoryViewMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.bottom, 4)
+                
+                if vm.historyViewMode == .combined {
+                    // Combined Activities View
+                    let combined = history.groupedActivities()
+                    ForEach(combined) { act in
+                        let matchingCat = settings.categories.first(where: { $0.name == act.categoryName })
+                        let catColor = matchingCat?.color ?? Color(red: 0.95, green: 0.36, blue: 0.30)
                         
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(session.title)
-                                .font(.system(size: 13, weight: .medium))
+                        HStack(spacing: 12) {
+                            Image(systemName: matchingCat?.icon ?? "bolt.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(catColor)
+                                .frame(width: 32, height: 32)
+                                .background(catColor.opacity(0.12))
+                                .clipShape(Circle())
                             
-                            HStack(spacing: 6) {
-                                Text(session.categoryName)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.secondary.opacity(0.12))
-                                    .clipShape(Capsule())
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(act.title)
+                                    .font(.system(size: 13, weight: .bold))
                                 
-                                Text(session.endTime.formatted(date: .abbreviated, time: .shortened))
+                                HStack(spacing: 6) {
+                                    Text(act.categoryName)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(catColor.opacity(0.15))
+                                        .foregroundColor(catColor)
+                                        .clipShape(Capsule())
+                                    
+                                    Text("Latest: \(act.latestSessionDate.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(act.formattedDuration)
+                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.primary)
+                                
+                                Text("\(act.totalCycles) \(act.totalCycles == 1 ? "cycle" : "cycles")")
                                     .font(.system(size: 11))
                                     .foregroundColor(.secondary)
                             }
                         }
-                        
-                        Spacer()
-                        
-                        Text("\(session.durationMinutes) min")
-                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        .padding(10)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+                        .cornerRadius(8)
                     }
-                    .padding(10)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
-                    .cornerRadius(8)
+                } else {
+                    // Chronological Timeline View
+                    let sorted = history.sessions.sorted(by: { $0.endTime > $1.endTime })
+                    ForEach(sorted) { session in
+                        HStack(spacing: 12) {
+                            Image(systemName: session.type.iconName)
+                                .font(.system(size: 14))
+                                .foregroundColor(session.type.accentColor)
+                                .frame(width: 28, height: 28)
+                                .background(session.type.accentColor.opacity(0.12))
+                                .clipShape(Circle())
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(session.title)
+                                    .font(.system(size: 13, weight: .medium))
+                                
+                                HStack(spacing: 6) {
+                                    Text(session.categoryName)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.secondary.opacity(0.12))
+                                        .clipShape(Capsule())
+                                    
+                                    Text(session.endTime.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            Text("\(session.durationMinutes) min")
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(10)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+                        .cornerRadius(8)
+                    }
                 }
             }
         }

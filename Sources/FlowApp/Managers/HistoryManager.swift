@@ -61,6 +61,46 @@ public struct DailyStudyStat: Identifiable, Equatable {
     }
 }
 
+public struct GroupedActivity: Identifiable, Equatable {
+    public var id: String { "\(categoryName):::\(normalizedTitle.lowercased())" }
+    public var title: String
+    public var normalizedTitle: String
+    public var categoryName: String
+    public var totalSeconds: TimeInterval
+    public var totalMinutes: Int { Int(totalSeconds / 60) }
+    public var totalCycles: Int
+    public var latestSessionDate: Date
+    public var sessions: [FlowSession]
+    
+    public init(
+        title: String,
+        normalizedTitle: String,
+        categoryName: String,
+        totalSeconds: TimeInterval,
+        totalCycles: Int,
+        latestSessionDate: Date,
+        sessions: [FlowSession]
+    ) {
+        self.title = title
+        self.normalizedTitle = normalizedTitle
+        self.categoryName = categoryName
+        self.totalSeconds = totalSeconds
+        self.totalCycles = totalCycles
+        self.latestSessionDate = latestSessionDate
+        self.sessions = sessions
+    }
+    
+    public var formattedDuration: String {
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        if hours > 0 {
+            return "\(hours)h \(mins)m"
+        } else {
+            return "\(mins)m"
+        }
+    }
+}
+
 public class HistoryManager: ObservableObject {
     public static let shared = HistoryManager()
     
@@ -102,6 +142,15 @@ public class HistoryManager: ObservableObject {
     public func recordSession(_ session: FlowSession) {
         sessions.append(session)
         recalculateStats()
+        saveSessions()
+    }
+    
+    public func updateLastSessionTitle(_ newTitle: String) {
+        guard !sessions.isEmpty else { return }
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let lastIdx = sessions.count - 1
+        sessions[lastIdx].title = trimmed
         saveSessions()
     }
     
@@ -362,6 +411,60 @@ public class HistoryManager: ObservableObject {
             breakdown[cat, default: 0] += session.durationMinutes
         }
         return breakdown
+    }
+    
+    // MARK: - Combined Activities Grouping
+    
+    public func groupedActivities(from sourceSessions: [FlowSession]? = nil) -> [GroupedActivity] {
+        let input = sourceSessions ?? sessions.filter { $0.type == .focus && $0.completed }
+        
+        var grouped: [String: (title: String, category: String, totalSecs: TimeInterval, cycles: Int, latestDate: Date, list: [FlowSession])] = [:]
+        
+        for sess in input {
+            let rawTitle = sess.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let displayTitle = rawTitle.isEmpty ? sess.categoryName : rawTitle
+            let key = "\(sess.categoryName):::\(displayTitle.lowercased())"
+            
+            if var existing = grouped[key] {
+                existing.totalSecs += sess.durationSeconds
+                existing.cycles += 1
+                if sess.endTime > existing.latestDate {
+                    existing.latestDate = sess.endTime
+                }
+                existing.list.append(sess)
+                grouped[key] = existing
+            } else {
+                grouped[key] = (
+                    title: displayTitle,
+                    category: sess.categoryName,
+                    totalSecs: sess.durationSeconds,
+                    cycles: 1,
+                    latestDate: sess.endTime,
+                    list: [sess]
+                )
+            }
+        }
+        
+        return grouped.values.map { item in
+            GroupedActivity(
+                title: item.title,
+                normalizedTitle: item.title,
+                categoryName: item.category,
+                totalSeconds: item.totalSecs,
+                totalCycles: item.cycles,
+                latestSessionDate: item.latestDate,
+                sessions: item.list.sorted(by: { $0.endTime > $1.endTime })
+            )
+        }.sorted {
+            if $0.totalSeconds != $1.totalSeconds {
+                return $0.totalSeconds > $1.totalSeconds
+            }
+            return $0.latestSessionDate > $1.latestSessionDate
+        }
+    }
+    
+    public var todayGroupedActivities: [GroupedActivity] {
+        return groupedActivities(from: todaySessions)
     }
     
     // CSV Export

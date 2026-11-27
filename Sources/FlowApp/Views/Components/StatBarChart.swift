@@ -268,31 +268,47 @@ public struct StatBarChart: View {
                 .cornerRadius(10)
             }
             
-            // Completed Sessions List / Chips
+            // Completed Activities (Combined by Task & Category)
             if !day.sessions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Focus Blocks:")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.secondary)
+                let dayActivities = history.groupedActivities(from: day.sessions)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Day Activities (\(dayActivities.count)):")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("Combined total time")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary.opacity(0.8))
+                    }
                     
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(day.sessions) { sess in
-                                HStack(spacing: 5) {
-                                    Circle()
-                                        .fill(accentColor)
-                                        .frame(width: 6, height: 6)
-                                    Text(sess.title.isEmpty ? sess.categoryName : sess.title)
-                                        .font(.system(size: 11, weight: .medium))
-                                    Text("(\(sess.durationMinutes)m)")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.12))
-                                .cornerRadius(6)
+                    VStack(spacing: 6) {
+                        ForEach(dayActivities) { act in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(accentColor)
+                                    .frame(width: 7, height: 7)
+                                Text(act.title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(1)
+                                
+                                Text(act.categoryName)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .clipShape(Capsule())
+                                
+                                Spacer()
+                                
+                                Text("\(act.totalCycles) \(act.totalCycles == 1 ? "cycle" : "cycles") • \(act.formattedDuration)")
+                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                    .foregroundColor(.secondary)
                             }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.secondary.opacity(0.08))
+                            .cornerRadius(8)
                         }
                     }
                 }

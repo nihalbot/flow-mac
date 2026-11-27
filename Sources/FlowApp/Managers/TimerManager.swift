@@ -4,7 +4,7 @@ import Combine
 public class TimerManager: ObservableObject {
     public static let shared = TimerManager()
     
-    @Published public var state: SessionState = .idle
+    @Published public var state: SessionState = .ready(type: .focus)
     @Published public var timeRemaining: TimeInterval = 25 * 60
     @Published public var totalDuration: TimeInterval = 25 * 60
     @Published public var currentRound: Int = 1
@@ -14,6 +14,7 @@ public class TimerManager: ObservableObject {
     @Published public var showCommitmentWarning: Bool = false
     @Published public var isFullScreenBreakPresented: Bool = false
     
+    private var lastCompletedFocusSessionDate: Date?
     private var timerCancellable: AnyCancellable?
     private var targetEndTime: Date?
     private var sessionStartTime: Date?
@@ -54,12 +55,28 @@ public class TimerManager: ObservableObject {
         return String(format: "%02d:%02d", minutes, seconds)
     }
     
+    public func updateTitle(_ newTitle: String) {
+        currentTitle = newTitle
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        // Only update the last completed session if it finished within the last 120s and user hasn't started a new session
+        if let lastCompleted = lastCompletedFocusSessionDate,
+           Date().timeIntervalSince(lastCompleted) < 120,
+           (state.isBreak || state.isIdle) {
+            history.updateLastSessionTitle(trimmed)
+            calendarManager.updateLastEventTitle(newTitle: trimmed)
+        }
+    }
+    
     // MARK: - Actions
     
     public func togglePlayPause() {
         switch state {
         case .idle:
             startFocus()
+        case .ready(let type):
+            startSession(type: type, duration: totalDuration)
         case .running(let type):
             if type == .focus && settings.commitmentMode {
                 // Flow Pro Commitment Mode: Show friction prompt
@@ -168,7 +185,7 @@ public class TimerManager: ObservableObject {
         isFullScreenBreakPresented = false
         
         switch state {
-        case .running(let type), .paused(let type):
+        case .running(let type), .paused(let type), .ready(let type):
             if type == .focus {
                 // Skipped focus: move to break
                 advanceToBreak(wasCompleted: false)
@@ -188,7 +205,7 @@ public class TimerManager: ObservableObject {
         isFullScreenBreakPresented = false
         
         switch state {
-        case .running(let type), .paused(let type):
+        case .running(let type), .paused(let type), .ready(let type):
             let duration: TimeInterval
             switch type {
             case .focus: duration = TimeInterval(settings.focusDurationMinutes * 60)
@@ -197,11 +214,12 @@ public class TimerManager: ObservableObject {
             }
             totalDuration = duration
             timeRemaining = duration
-            state = .paused(type: type)
+            state = .ready(type: type)
         case .idle:
             let duration = TimeInterval(settings.focusDurationMinutes * 60)
             totalDuration = duration
             timeRemaining = duration
+            state = .ready(type: .focus)
         }
     }
     
@@ -241,6 +259,7 @@ public class TimerManager: ObservableObject {
         guard case .running(let type) = state else { return }
         
         if type == .focus {
+            lastCompletedFocusSessionDate = Date()
             let sessionRecord = FlowSession(
                 title: currentTitle.isEmpty ? "Focus Session" : currentTitle,
                 categoryName: currentCategory.name,
@@ -322,7 +341,7 @@ public class TimerManager: ObservableObject {
     }
     
     private func prepareSession(type: SessionType, duration: TimeInterval) {
-        state = .idle
+        state = .ready(type: type)
         totalDuration = duration
         timeRemaining = duration
         if type != .focus && settings.fullscreenBreaks {

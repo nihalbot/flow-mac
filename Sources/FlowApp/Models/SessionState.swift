@@ -32,6 +32,7 @@ public enum SessionType: String, Codable, CaseIterable {
 
 public enum SessionState: Equatable {
     case idle
+    case ready(type: SessionType)
     case running(type: SessionType)
     case paused(type: SessionType)
     
@@ -45,16 +46,22 @@ public enum SessionState: Equatable {
         return false
     }
     
-    public var isIdle: Bool {
-        if case .idle = self { return true }
+    public var isReady: Bool {
+        if case .ready = self { return true }
         return false
+    }
+    
+    public var isIdle: Bool {
+        switch self {
+        case .idle, .ready: return true
+        default: return false
+        }
     }
     
     public var currentType: SessionType? {
         switch self {
         case .idle: return nil
-        case .running(let type): return type
-        case .paused(let type): return type
+        case .ready(let type), .running(let type), .paused(let type): return type
         }
     }
     
@@ -64,13 +71,19 @@ public enum SessionState: Equatable {
     }
     
     public var isFocus: Bool {
-        return currentType == .focus
+        return currentType == .focus || (self == .idle)
     }
     
     public var statusDescription: String {
         switch self {
         case .idle:
-            return "Ready"
+            return "Ready to Focus"
+        case .ready(let type):
+            switch type {
+            case .focus: return "Ready to Focus"
+            case .shortBreak: return "Ready for Short Break"
+            case .longBreak: return "Ready for Long Break"
+            }
         case .running(let type):
             return type.displayName
         case .paused(let type):

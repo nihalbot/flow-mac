@@ -32,6 +32,19 @@ public struct MenuBarHUDView: View {
         return timer.currentCategory.color
     }
     
+    private var mainButtonTitle: String {
+        switch timer.state {
+        case .running:
+            return "Pause"
+        case .paused:
+            return "Resume"
+        case .ready(let type):
+            return "Start \(type.displayName)"
+        case .idle:
+            return "Start Focus"
+        }
+    }
+    
     public var body: some View {
         VStack(spacing: 16) {
             // Header Bar
@@ -118,7 +131,9 @@ public struct MenuBarHUDView: View {
                         .font(.system(size: 12))
                         .foregroundColor(timer.currentCategory.color)
                     
-                    TextField("What are you focusing on?", text: $timer.currentTitle)
+                    TextField("What are you focusing on?", text: $timer.currentTitle, onCommit: {
+                        timer.updateTitle(timer.currentTitle)
+                    })
                         .textFieldStyle(PlainTextFieldStyle())
                         .font(.system(size: 13, weight: .medium))
                     
@@ -186,7 +201,7 @@ public struct MenuBarHUDView: View {
                     HStack(spacing: 8) {
                         Image(systemName: timer.state.isRunning ? "pause.fill" : "play.fill")
                             .font(.system(size: 16, weight: .bold))
-                        Text(timer.state.isRunning ? "Pause" : (timer.state.isPaused ? "Resume" : "Start Focus"))
+                        Text(mainButtonTitle)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                     }
                     .frame(maxWidth: .infinity)

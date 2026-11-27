@@ -86,41 +86,43 @@ public struct FullScreenBreakView: View {
                             .font(.system(size: 50, weight: .thin, design: .monospaced))
                             .foregroundColor(.white)
                         
-                        Text("remaining in your break")
+                        Text(timer.state.isRunning ? "remaining in your break" : "Ready for your \(timer.state.currentType?.displayName ?? "break") (\(Int(timer.totalDuration / 60)) min)")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
                             .foregroundColor(.white.opacity(0.6))
                         
-                        // Extend Break Buttons (+1m / +5m)
-                        HStack(spacing: 10) {
-                            Button(action: { timer.extendSession(by: 60) }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus")
-                                    Text("1 min")
+                        // Extend Break Buttons (+1m / +5m) (if running)
+                        if timer.state.isRunning {
+                            HStack(spacing: 10) {
+                                Button(action: { timer.extendSession(by: 60) }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                        Text("1 min")
+                                    }
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(Color.white.opacity(0.12))
+                                    .foregroundColor(.white)
+                                    .clipShape(Capsule())
                                 }
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.white.opacity(0.12))
-                                .foregroundColor(.white)
-                                .clipShape(Capsule())
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            Button(action: { timer.extendSession(by: 300) }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus")
-                                    Text("5 min")
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                Button(action: { timer.extendSession(by: 300) }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                        Text("5 min")
+                                    }
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(Color.white.opacity(0.12))
+                                    .foregroundColor(.white)
+                                    .clipShape(Capsule())
                                 }
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.white.opacity(0.12))
-                                .foregroundColor(.white)
-                                .clipShape(Capsule())
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .padding(.top, 4)
                         }
-                        .padding(.top, 4)
                     }
                 } else {
                     // --- FOCUS / IDLE BREAK OPTIONS STATE ---
@@ -249,40 +251,73 @@ public struct FullScreenBreakView: View {
                 // Bottom Action Buttons
                 HStack(spacing: 12) {
                     if isCurrentlyOnBreak {
-                        Button(action: {
-                            timer.skipSession()
-                            onDismiss()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "bolt.fill")
-                                Text("End Break & Focus Now")
-                            }
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 38)
-                            .background(Color(red: 0.28, green: 0.72, blue: 0.60))
-                            .foregroundColor(.white)
-                            .cornerRadius(19)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Button(action: onDismiss) {
-                            Text("Dismiss Window")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                        if timer.state.isRunning {
+                            Button(action: {
+                                timer.skipSession()
+                                onDismiss()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "bolt.fill")
+                                    Text("End Break & Focus Now")
+                                }
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .frame(maxWidth: .infinity)
                                 .frame(height: 38)
-                                .padding(.horizontal, 16)
-                                .background(Color.white.opacity(0.12))
-                                .foregroundColor(.white.opacity(0.8))
+                                .background(Color(red: 0.28, green: 0.72, blue: 0.60))
+                                .foregroundColor(.white)
                                 .cornerRadius(19)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Button(action: onDismiss) {
+                                Text("Dismiss Window (Esc)")
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .frame(height: 38)
+                                    .padding(.horizontal, 16)
+                                    .background(Color.white.opacity(0.12))
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .cornerRadius(19)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        } else {
+                            // Ready for Break (popup on break phase)
+                            Button(action: {
+                                timer.togglePlayPause()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "play.fill")
+                                    Text("Start \(timer.state.currentType?.displayName ?? "Break") (\(Int(timer.totalDuration / 60)) min)")
+                                }
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .background(Color(red: 0.28, green: 0.72, blue: 0.60))
+                                .foregroundColor(.white)
+                                .cornerRadius(19)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Button(action: {
+                                timer.skipSession()
+                                onDismiss()
+                            }) {
+                                Text("Skip to Focus (Esc)")
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .frame(height: 38)
+                                    .padding(.horizontal, 16)
+                                    .background(Color.white.opacity(0.12))
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .cornerRadius(19)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .buttonStyle(PlainButtonStyle())
                     } else {
                         Button(action: {
                             timer.startShortBreak()
                         }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "play.fill")
-                                Text("Start Short Break (5m)")
+                                Text("Start Short Break (\(settings.shortBreakDurationMinutes)m)")
                             }
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)

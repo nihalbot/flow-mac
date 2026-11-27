@@ -418,11 +418,40 @@ public struct PreferencesView: View {
             GroupBox(label: Text("Apple Calendar Integration").font(.headline)) {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Log Completed Focus Sessions to Apple Calendar", isOn: $settings.calendarSyncEnabled)
+                        .onChange(of: settings.calendarSyncEnabled) { enabled in
+                            if enabled {
+                                CalendarManager.shared.requestAccess()
+                            }
+                        }
                     
                     TextField("Calendar Name:", text: $settings.calendarName)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                     
-                    Text("Flow will automatically create timeline entries for every completed focus session in Apple Calendar.")
+                    HStack(spacing: 8) {
+                        if CalendarManager.shared.isAuthorized {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Calendar Access: Granted (Automated Background Sync Active)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.green)
+                        } else {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("One-Time Permission Needed")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.orange)
+                            
+                            Spacer()
+                            
+                            Button("Grant Access Once") {
+                                CalendarManager.shared.requestAccess()
+                            }
+                            .font(.system(size: 11))
+                        }
+                    }
+                    .padding(.top, 2)
+                    
+                    Text("Flow records your focus sessions directly via EventKit. Once granted, it logs sessions automatically in the background without prompting you again.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
